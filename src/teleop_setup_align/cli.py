@@ -120,9 +120,12 @@ def close_cameras(handles: dict[str, OpenCVCamera]) -> None:
         cam.disconnect()
 
 
-# Minimum time between accepted keypresses of the same key, so OS key-repeat while a
-# key is held (e.g. SPACE) doesn't trigger the action multiple times per press.
-KEY_DEBOUNCE_S = 0.4
+# Minimum time between accepted keypresses, so OS key-repeat while a key is held doesn't
+# trigger the action multiple times per press. SPACE is a discrete one-shot action so it
+# gets a generous window (longer than any normal tap-and-release); +/- adjust an opacity
+# slider where a quick repeat while held is actually desirable, so theirs is much shorter.
+SAVE_DEBOUNCE_S = 1.5
+ALPHA_DEBOUNCE_S = 0.15
 
 
 def snapshot(cameras: dict[str, dict], warmup_s: int) -> None:
@@ -139,7 +142,7 @@ def snapshot(cameras: dict[str, dict], warmup_s: int) -> None:
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
-            if key == ord(" ") and time.monotonic() - last_save_t > KEY_DEBOUNCE_S:
+            if key == ord(" ") and time.monotonic() - last_save_t > SAVE_DEBOUNCE_S:
                 last_save_t = time.monotonic()
                 for name, frame in frames.items():
                     out_path = REFERENCE_DIR / f"{name}.png"
@@ -175,10 +178,10 @@ def align(cameras: dict[str, dict], alpha: float, warmup_s: int) -> None:
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
-            elif key in (ord("+"), ord("=")) and time.monotonic() - last_alpha_t > KEY_DEBOUNCE_S:
+            elif key in (ord("+"), ord("=")) and time.monotonic() - last_alpha_t > ALPHA_DEBOUNCE_S:
                 last_alpha_t = time.monotonic()
                 alpha = min(1.0, alpha + 0.05)
-            elif key == ord("-") and time.monotonic() - last_alpha_t > KEY_DEBOUNCE_S:
+            elif key == ord("-") and time.monotonic() - last_alpha_t > ALPHA_DEBOUNCE_S:
                 last_alpha_t = time.monotonic()
                 alpha = max(0.0, alpha - 0.05)
     finally:
