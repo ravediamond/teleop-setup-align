@@ -116,7 +116,7 @@ def index():
             <div class="relative rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
               <img data-feed="{name}" class="w-full aspect-video object-cover" />
             </div>
-            <div data-lum-wrap="{name}" class="mt-2 h-8 hidden">
+            <div data-lum-wrap="{name}" class="mt-2 hidden">
               <div class="flex items-center justify-between mb-1">
                 <span class="text-xs font-medium text-gray-600">Lighting match</span>
                 <span data-lum-pct="{name}" class="text-xs font-semibold text-gray-700"></span>
@@ -124,6 +124,7 @@ def index():
               <div class="w-full bg-gray-200 rounded-full h-1.5">
                 <div data-lum-bar="{name}" class="h-1.5 rounded-full transition-all duration-300" style="width:0%"></div>
               </div>
+              <p data-lum-detail="{name}" class="text-[11px] text-gray-400 mt-1 font-mono"></p>
             </div>
           </div>
         </div>"""
@@ -209,13 +210,14 @@ def index():
         const j = await r.json();
         const bar = document.querySelector(`[data-lum-bar="${{name}}"]`);
         const pctEl = document.querySelector(`[data-lum-pct="${{name}}"]`);
-        if (!j.has_reference) {{ bar.style.width = "0%"; pctEl.textContent = "no reference"; continue; }}
+        const detailEl = document.querySelector(`[data-lum-detail="${{name}}"]`);
+        if (!j.has_reference) {{ bar.style.width = "0%"; pctEl.textContent = "no reference"; detailEl.textContent = ""; continue; }}
         const match = Math.round(j.match);
         const color = match >= 85 ? "bg-green-500" : match >= 60 ? "bg-amber-500" : "bg-red-500";
         bar.style.width = match + "%";
         bar.className = "h-1.5 rounded-full transition-all duration-300 " + color;
-        bar.title = `brightness diff: ${{j.brightness_diff.toFixed(1)}}%, color diff: ${{j.color_diff.toFixed(1)}}%`;
         pctEl.textContent = match + "%";
+        detailEl.textContent = `brightness diff ${{j.brightness_diff.toFixed(1)}}% · color diff ${{j.color_diff.toFixed(1)}}%`;
       }}
     }}
     setTimeout(pollLuminosity, 1500);
