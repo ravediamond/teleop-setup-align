@@ -115,7 +115,15 @@ def index():
             <div class="relative rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
               <img data-feed="{name}" class="w-full aspect-video object-cover" />
             </div>
-            <p data-lum="{name}" class="text-xs text-gray-500 mt-2 h-4"></p>
+            <div data-lum-wrap="{name}" class="mt-2 h-8 hidden">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-medium text-gray-600">Lighting match</span>
+                <span data-lum-pct="{name}" class="text-xs font-semibold text-gray-700"></span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5">
+                <div data-lum-bar="{name}" class="h-1.5 rounded-full transition-all duration-300" style="width:0%"></div>
+              </div>
+            </div>
           </div>
         </div>"""
         for name in camera_names
@@ -184,25 +192,28 @@ def index():
       : "Nudge the arm/cameras until the live feed lines up with the saved reference (the ghost).";
     for (const name of cameraNames) {{
       document.querySelector(`img[data-feed="${{name}}"]`).src = `/feed/${{name}}?ghost=${{n === 2 ? 1 : 0}}&t=${{Date.now()}}`;
-      if (n !== 2) document.querySelector(`[data-lum="${{name}}"]`).textContent = "";
+      document.querySelector(`[data-lum-wrap="${{name}}"]`).classList.toggle("hidden", n !== 2);
     }}
   }}
 
   // Optional: the ghost overlay checks framing, but not whether the room lighting has
   // changed since the reference was taken -- a dim/bright match still lines up visually.
+  // Shown as a 0-100% match bar: 100% = identical mean brightness, dropping as the live
+  // frame diverges from the reference in either direction.
   async function pollLuminosity() {{
     if (step === 2) {{
       for (const name of cameraNames) {{
         const r = await fetch(`/luminosity/${{name}}`);
         const j = await r.json();
-        const el = document.querySelector(`[data-lum="${{name}}"]`);
-        if (!j.has_reference) {{ el.textContent = ""; continue; }}
-        const pct = Math.round((j.ratio - 1) * 100);
-        const close = Math.abs(pct) <= 15;
-        el.textContent = close
-          ? "Lighting matches reference"
-          : `Lighting ${{pct > 0 ? pct + "% brighter" : -pct + "% dimmer"}} than reference`;
-        el.className = "text-xs mt-2 h-4 " + (close ? "text-green-600" : "text-amber-600");
+        const bar = document.querySelector(`[data-lum-bar="${{name}}"]`);
+        const pctEl = document.querySelector(`[data-lum-pct="${{name}}"]`);
+        if (!j.has_reference) {{ bar.style.width = "0%"; pctEl.textContent = "no reference"; continue; }}
+        const diffPct = Math.abs(j.ratio - 1) * 100;
+        const match = Math.max(0, Math.round(100 - diffPct));
+        const color = match >= 85 ? "bg-green-500" : match >= 60 ? "bg-amber-500" : "bg-red-500";
+        bar.style.width = match + "%";
+        bar.className = "h-1.5 rounded-full transition-all duration-300 " + color;
+        pctEl.textContent = match + "%";
       }}
     }}
     setTimeout(pollLuminosity, 1500);
