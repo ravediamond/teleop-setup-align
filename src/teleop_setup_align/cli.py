@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import platform
+import time
 from pathlib import Path
 
 import cv2
@@ -119,12 +120,18 @@ def close_cameras(handles: dict[str, OpenCVCamera]) -> None:
         cam.disconnect()
 
 
+# Minimum time between accepted keypresses of the same key, so OS key-repeat while a
+# key is held (e.g. SPACE) doesn't trigger the action multiple times per press.
+KEY_DEBOUNCE_S = 0.4
+
+
 def snapshot(cameras: dict[str, dict], warmup_s: int) -> None:
     REFERENCE_DIR.mkdir(exist_ok=True)
     handles = open_cameras(cameras, warmup_s)
     print("Live preview - press SPACE to save a reference frame for every camera, 'q' to quit.")
     try:
         saved = set()
+        last_save_t = 0.0
         while True:
             frames = {name: cv2.cvtColor(cam.read(), cv2.COLOR_RGB2BGR) for name, cam in handles.items()}
             for name, frame in frames.items():
@@ -132,7 +139,8 @@ def snapshot(cameras: dict[str, dict], warmup_s: int) -> None:
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
-            if key == ord(" "):
+            if key == ord(" ") and time.monotonic() - last_save_t > KEY_DEBOUNCE_S:
+                last_save_t = time.monotonic()
                 for name, frame in frames.items():
                     out_path = REFERENCE_DIR / f"{name}.png"
                     cv2.imwrite(str(out_path), frame)
@@ -156,6 +164,7 @@ def align(cameras: dict[str, dict], alpha: float, warmup_s: int) -> None:
     print("Move the camera/arm until the live feed lines up with the ghost overlay.")
     print("Keys: 'q' quit, '+'/'-' adjust overlay opacity")
     try:
+        last_alpha_t = 0.0
         while True:
             for name, cam in handles.items():
                 frame = cv2.cvtColor(cam.read(), cv2.COLOR_RGB2BGR)
@@ -166,9 +175,11 @@ def align(cameras: dict[str, dict], alpha: float, warmup_s: int) -> None:
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
-            elif key in (ord("+"), ord("=")):
+            elif key in (ord("+"), ord("=")) and time.monotonic() - last_alpha_t > KEY_DEBOUNCE_S:
+                last_alpha_t = time.monotonic()
                 alpha = min(1.0, alpha + 0.05)
-            elif key == ord("-"):
+            elif key == ord("-") and time.monotonic() - last_alpha_t > KEY_DEBOUNCE_S:
+                last_alpha_t = time.monotonic()
                 alpha = max(0.0, alpha - 0.05)
     finally:
         close_cameras(handles)
