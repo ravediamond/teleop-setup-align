@@ -160,7 +160,18 @@ def lighting_signature(frame) -> dict:
 
 
 def lighting_match(live: dict, reference: dict) -> dict:
-    """0-100 lighting match score plus the individual signal diffs it's built from."""
+    """0-100 lighting match score plus the individual signal diffs it's built from.
+
+    Which of brightness/color moves more depends on the specific camera (measured on a
+    real rig: closing curtains moved the wrist camera's brightness_diff 3.0% -> 6.0% but
+    barely touched its color_diff, while the same curtain moved the front camera's
+    color_diff 0.3% -> 6.1% but barely touched brightness_diff) -- averaging the two
+    dilutes whichever one actually carries the signal for that camera, so use whichever
+    is larger. Real lighting changes on this rig only ever produced single-digit-percent
+    diffs even when clearly visible, so a straight "100 - diff" barely moves the score;
+    GAIN amplifies modest-but-real diffs into a visibly different match percentage.
+    """
+    GAIN = 4
 
     def pct_diff(a: float, b: float) -> float:
         return abs(a - b) / b * 100 if b else (0.0 if a == b else 100.0)
@@ -169,9 +180,9 @@ def lighting_match(live: dict, reference: dict) -> dict:
     # Channel shares are already fractions of ~1/3 each; scale so a visible color-temperature
     # shift (a few % of total brightness moving between channels) reads on the same 0-100 scale.
     color_diff = sum(abs(a - b) for a, b in zip(live["color_balance"], reference["color_balance"])) * 100
-    combined = 0.6 * brightness_diff + 0.4 * color_diff
+    worst = max(brightness_diff, color_diff)
     return {
-        "match": max(0.0, 100.0 - combined),
+        "match": max(0.0, 100.0 - GAIN * worst),
         "brightness_diff": brightness_diff,
         "color_diff": color_diff,
     }
