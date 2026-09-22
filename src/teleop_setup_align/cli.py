@@ -120,6 +120,23 @@ def close_cameras(handles: dict[str, OpenCVCamera]) -> None:
         cam.disconnect()
 
 
+def load_references(camera_names: list[str]):
+    """Load saved reference frames (BGR, as written by `snapshot`) for cameras that have one."""
+    references = {}
+    for name in camera_names:
+        ref_path = REFERENCE_DIR / f"{name}.png"
+        if ref_path.exists():
+            references[name] = cv2.imread(str(ref_path))
+    return references
+
+
+def blend_frame(frame, ref, alpha: float):
+    """Blend a live BGR frame with a reference frame as a ghost overlay, if shapes match."""
+    if ref is not None and ref.shape == frame.shape:
+        return cv2.addWeighted(frame, 1 - alpha, ref, alpha, 0)
+    return frame
+
+
 # Minimum time between accepted keypresses, so OS key-repeat while a key is held doesn't
 # trigger the action multiple times per press. SPACE is a discrete one-shot action so it
 # gets a generous window (longer than any normal tap-and-release); +/- adjust an opacity
@@ -156,13 +173,10 @@ def snapshot(cameras: dict[str, dict], warmup_s: int) -> None:
 
 def align(cameras: dict[str, dict], alpha: float, warmup_s: int) -> None:
     handles = open_cameras(cameras, warmup_s)
-    references = {}
+    references = load_references(list(cameras))
     for name in cameras:
-        ref_path = REFERENCE_DIR / f"{name}.png"
-        if not ref_path.exists():
-            print(f"No reference for '{name}' at {ref_path} - run `snapshot` first. Showing live only.")
-            continue
-        references[name] = cv2.imread(str(ref_path))
+        if name not in references:
+            print(f"No reference for '{name}' at {REFERENCE_DIR / f'{name}.png'} - run `snapshot` first.")
 
     print("Move the camera/arm until the live feed lines up with the ghost overlay.")
     print("Keys: 'q' quit, '+'/'-' adjust overlay opacity")
@@ -171,9 +185,7 @@ def align(cameras: dict[str, dict], alpha: float, warmup_s: int) -> None:
         while True:
             for name, cam in handles.items():
                 frame = cv2.cvtColor(cam.read(), cv2.COLOR_RGB2BGR)
-                ref = references.get(name)
-                if ref is not None and ref.shape == frame.shape:
-                    frame = cv2.addWeighted(frame, 1 - alpha, ref, alpha, 0)
+                frame = blend_frame(frame, references.get(name), alpha)
                 cv2.imshow(name, frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):

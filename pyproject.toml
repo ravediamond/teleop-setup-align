@@ -11,8 +11,12 @@ dependencies = [
     "opencv-python-headless>=4.9.0",
 ]
 
+[project.optional-dependencies]
+web = ["fastapi>=0.110", "uvicorn>=0.29"]
+
 [project.scripts]
 teleop-setup-align = "teleop_setup_align.cli:main"
+teleop-setup-align-web = "teleop_setup_align.web:main"
 
 [build-system]
 requires = ["hatchling"]

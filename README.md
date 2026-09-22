@@ -67,6 +67,21 @@ directory.
 - `q` — quit
 - `+` / `-` (in `align` mode) — adjust ghost overlay opacity
 
+## Web UI
+
+A minimal browser version — one page, a live ghost-overlay feed per camera, an
+opacity slider, and a Snapshot button. No separate windows or keyboard focus
+issues. Prototyped as a rough sketch of what this could look like as a LeLab
+page: it mirrors LeLab's own `/camera-feed/{cam_key}` MJPEG-streaming pattern
+(`lelab.server` / `lelab.record`), so the pieces (a per-camera MJPEG endpoint,
+a snapshot action) would map onto LeLab's FastAPI backend with little change.
+
+```bash
+pip install "teleop-setup-align[web]"
+teleop-setup-align-web
+# open http://127.0.0.1:8420
+```
+
 ## Status
 
 Early, personal-workflow tool built around a two-camera SO-101 rig. Camera
