@@ -137,6 +137,11 @@ def blend_frame(frame, ref, alpha: float):
     return frame
 
 
+def mean_luminosity(frame) -> float:
+    """Average grayscale brightness of a BGR frame, 0-255."""
+    return float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean())
+
+
 # Minimum time between accepted keypresses, so OS key-repeat while a key is held doesn't
 # trigger the action multiple times per press. SPACE is a discrete one-shot action so it
 # gets a generous window (longer than any normal tap-and-release); +/- adjust an opacity

@@ -23,6 +23,7 @@ from .cli import (
     blend_frame,
     close_cameras,
     load_references,
+    mean_luminosity,
     open_cameras,
     parse_cameras,
 )
@@ -88,6 +89,18 @@ def set_alpha(value: float):
     return {"alpha": state["alpha"]}
 
 
+@app.get("/luminosity/{name}")
+def luminosity(name: str):
+    if name not in state["handles"]:
+        return JSONResponse({"error": f"unknown camera '{name}'"}, status_code=404)
+    ref = state["references"].get(name)
+    if ref is None:
+        return {"has_reference": False}
+    live = mean_luminosity(cv2.cvtColor(state["handles"][name].read(), cv2.COLOR_RGB2BGR))
+    reference = mean_luminosity(ref)
+    return {"has_reference": True, "live": live, "reference": reference, "ratio": live / reference if reference else 0}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     camera_names = list(state["handles"])
@@ -102,6 +115,7 @@ def index():
             <div class="relative rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
               <img data-feed="{name}" class="w-full aspect-video object-cover" />
             </div>
+            <p data-lum="{name}" class="text-xs text-gray-500 mt-2 h-4"></p>
           </div>
         </div>"""
         for name in camera_names
@@ -170,7 +184,28 @@ def index():
       : "Nudge the arm/cameras until the live feed lines up with the saved reference (the ghost).";
     for (const name of cameraNames) {{
       document.querySelector(`img[data-feed="${{name}}"]`).src = `/feed/${{name}}?ghost=${{n === 2 ? 1 : 0}}&t=${{Date.now()}}`;
+      if (n !== 2) document.querySelector(`[data-lum="${{name}}"]`).textContent = "";
     }}
+  }}
+
+  // Optional: the ghost overlay checks framing, but not whether the room lighting has
+  // changed since the reference was taken -- a dim/bright match still lines up visually.
+  async function pollLuminosity() {{
+    if (step === 2) {{
+      for (const name of cameraNames) {{
+        const r = await fetch(`/luminosity/${{name}}`);
+        const j = await r.json();
+        const el = document.querySelector(`[data-lum="${{name}}"]`);
+        if (!j.has_reference) {{ el.textContent = ""; continue; }}
+        const pct = Math.round((j.ratio - 1) * 100);
+        const close = Math.abs(pct) <= 15;
+        el.textContent = close
+          ? "Lighting matches reference"
+          : `Lighting ${{pct > 0 ? pct + "% brighter" : -pct + "% dimmer"}} than reference`;
+        el.className = "text-xs mt-2 h-4 " + (close ? "text-green-600" : "text-amber-600");
+      }}
+    }}
+    setTimeout(pollLuminosity, 1500);
   }}
 
   async function refreshStatus() {{
@@ -198,6 +233,7 @@ def index():
 
   setStep(1);
   refreshStatus();
+  pollLuminosity();
 </script>
 </body>
 </html>
