@@ -80,10 +80,12 @@ def parse_cameras(pairs: list[str] | None, robot_name: str | None) -> dict[str, 
     return discover_cameras(robot_name)
 
 
-def open_cameras(cameras: dict[str, int]) -> dict[str, OpenCVCamera]:
+def open_cameras(cameras: dict[str, int], warmup_s: int) -> dict[str, OpenCVCamera]:
     handles = {}
     for name, index in cameras.items():
-        cam = OpenCVCamera(OpenCVCameraConfig(index_or_path=index, fps=30, width=640, height=480))
+        cam = OpenCVCamera(
+            OpenCVCameraConfig(index_or_path=index, fps=30, width=640, height=480, warmup_s=warmup_s)
+        )
         cam.connect()
         handles[name] = cam
     return handles
@@ -94,9 +96,9 @@ def close_cameras(handles: dict[str, OpenCVCamera]) -> None:
         cam.disconnect()
 
 
-def snapshot(cameras: dict[str, int]) -> None:
+def snapshot(cameras: dict[str, int], warmup_s: int) -> None:
     REFERENCE_DIR.mkdir(exist_ok=True)
-    handles = open_cameras(cameras)
+    handles = open_cameras(cameras, warmup_s)
     print("Live preview - press SPACE to save a reference frame for every camera, 'q' to quit.")
     try:
         saved = set()
@@ -118,8 +120,8 @@ def snapshot(cameras: dict[str, int]) -> None:
         cv2.destroyAllWindows()
 
 
-def align(cameras: dict[str, int], alpha: float) -> None:
-    handles = open_cameras(cameras)
+def align(cameras: dict[str, int], alpha: float, warmup_s: int) -> None:
+    handles = open_cameras(cameras, warmup_s)
     references = {}
     for name in cameras:
         ref_path = REFERENCE_DIR / f"{name}.png"
@@ -171,13 +173,19 @@ def main() -> None:
         f"{ROBOTS_PATH}). Defaults to the only/most recently modified one.",
     )
     parser.add_argument("--alpha", type=float, default=0.5, help="Initial overlay opacity for 'align' (0-1).")
+    parser.add_argument(
+        "--warmup-s",
+        type=int,
+        default=4,
+        help="Seconds to let each camera warm up before use (default: 4, some cameras need this to give frames).",
+    )
     args = parser.parse_args()
 
     cameras = parse_cameras(args.camera, args.robot)
     if args.mode == "snapshot":
-        snapshot(cameras)
+        snapshot(cameras, args.warmup_s)
     else:
-        align(cameras, args.alpha)
+        align(cameras, args.alpha, args.warmup_s)
 
 
 if __name__ == "__main__":
