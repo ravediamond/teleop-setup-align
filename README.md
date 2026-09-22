@@ -37,14 +37,23 @@ pip install -e .
 
 ## Usage
 
+By default, cameras are read straight from the same robot config LeLab and
+lerobot already write to (`~/.cache/huggingface/lerobot/robots/*.json`), so
+the setup you're aligning to always matches what LeLab will actually connect
+to — no separate camera list to keep in sync by hand.
+
 ```bash
-# Save a reference setup (defaults to a two-camera SO-101 rig: wrist_camera=0, front_top_camera=1)
+# Save a reference setup (cameras auto-discovered from your LeLab/lerobot robot config)
 teleop-setup-align snapshot
 
 # Later, realign to it
 teleop-setup-align align
 
-# Override camera indices if they drift across reconnects/reboots
+# Multiple robot configs saved? pick one by name
+teleop-setup-align snapshot --robot so-101
+
+# Override camera indices if they drift across reconnects/reboots, or if you're
+# not using LeLab/lerobot's config at all
 teleop-setup-align snapshot --camera wrist_camera=0 --camera front_top_camera=1
 
 # Tune the overlay opacity
