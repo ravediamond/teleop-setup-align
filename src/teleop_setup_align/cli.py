@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 from pathlib import Path
 
 import cv2
+from lerobot.cameras.configs import Cv2Backends
 from lerobot.cameras.opencv import OpenCVCamera, OpenCVCameraConfig
 
 # Same location LeLab/lerobot write robot+camera setup to (see lelab.utils.config.ROBOTS_PATH).
@@ -34,8 +36,20 @@ ROBOTS_PATH = Path("~/.cache/huggingface/lerobot/robots").expanduser()
 REFERENCE_DIR = Path(".setup_reference")
 
 
-def discover_cameras(robot_name: str | None) -> dict[str, int]:
-    """Read camera name -> index straight from the LeLab/lerobot robot config."""
+def _platform_backend() -> Cv2Backends:
+    """Match lelab.record._platform_backend() so we open cameras the same way LeLab does."""
+    system = platform.system()
+    if system == "Darwin":
+        return Cv2Backends.AVFOUNDATION
+    if system == "Linux":
+        return Cv2Backends.V4L2
+    if system == "Windows":
+        return Cv2Backends.DSHOW
+    return Cv2Backends.ANY
+
+
+def discover_cameras(robot_name: str | None) -> dict[str, dict]:
+    """Read per-camera specs straight from the LeLab/lerobot robot config."""
     if not ROBOTS_PATH.is_dir():
         raise SystemExit(
             f"No robot configs found at {ROBOTS_PATH} (LeLab/lerobot haven't saved a robot setup yet). "
@@ -65,7 +79,12 @@ def discover_cameras(robot_name: str | None) -> dict[str, int]:
         if cam.get("type") != "opencv":
             print(f"Skipping camera '{cam.get('name')}': only type 'opencv' is supported (got '{cam.get('type')}').")
             continue
-        cameras[cam["name"]] = cam["camera_index"]
+        cameras[cam["name"]] = {
+            "index_or_path": cam["camera_index"],
+            "width": cam.get("width"),
+            "height": cam.get("height"),
+            "fps": cam.get("fps"),
+        }
 
     if not cameras:
         raise SystemExit(f"No opencv cameras found in {config_path}. Pass --camera NAME=INDEX explicitly.")
@@ -74,18 +93,22 @@ def discover_cameras(robot_name: str | None) -> dict[str, int]:
     return cameras
 
 
-def parse_cameras(pairs: list[str] | None, robot_name: str | None) -> dict[str, int]:
+def parse_cameras(pairs: list[str] | None, robot_name: str | None) -> dict[str, dict]:
     if pairs:
-        return {name: int(index) for name, index in (pair.split("=") for pair in pairs)}
+        # Manual override: only the index is known, so leave width/height/fps to the camera's
+        # native default rather than guessing values that might not match the real hardware.
+        return {
+            name: {"index_or_path": int(index), "width": None, "height": None, "fps": None}
+            for name, index in (pair.split("=") for pair in pairs)
+        }
     return discover_cameras(robot_name)
 
 
-def open_cameras(cameras: dict[str, int], warmup_s: int) -> dict[str, OpenCVCamera]:
+def open_cameras(cameras: dict[str, dict], warmup_s: int) -> dict[str, OpenCVCamera]:
+    backend = _platform_backend()
     handles = {}
-    for name, index in cameras.items():
-        cam = OpenCVCamera(
-            OpenCVCameraConfig(index_or_path=index, fps=30, width=640, height=480, warmup_s=warmup_s)
-        )
+    for name, spec in cameras.items():
+        cam = OpenCVCamera(OpenCVCameraConfig(backend=backend, warmup_s=warmup_s, **spec))
         cam.connect()
         handles[name] = cam
     return handles
@@ -96,7 +119,7 @@ def close_cameras(handles: dict[str, OpenCVCamera]) -> None:
         cam.disconnect()
 
 
-def snapshot(cameras: dict[str, int], warmup_s: int) -> None:
+def snapshot(cameras: dict[str, dict], warmup_s: int) -> None:
     REFERENCE_DIR.mkdir(exist_ok=True)
     handles = open_cameras(cameras, warmup_s)
     print("Live preview - press SPACE to save a reference frame for every camera, 'q' to quit.")
@@ -120,7 +143,7 @@ def snapshot(cameras: dict[str, int], warmup_s: int) -> None:
         cv2.destroyAllWindows()
 
 
-def align(cameras: dict[str, int], alpha: float, warmup_s: int) -> None:
+def align(cameras: dict[str, dict], alpha: float, warmup_s: int) -> None:
     handles = open_cameras(cameras, warmup_s)
     references = {}
     for name in cameras:
