@@ -137,6 +137,30 @@ def blend_frame(frame, ref, alpha: float):
     return frame
 
 
+def alignment_score(frame, ref) -> float:
+    """0-100: how well a live frame's structure (framing/pose) lines up with the reference.
+
+    Normalized cross-correlation (cv2.TM_CCOEFF_NORMED) rather than raw pixel difference,
+    since it subtracts each image's own mean before comparing -- an overall brightness/
+    contrast difference (lighting_match's job) won't tank this score, only an actual shift
+    in what's in frame will.
+
+    Blurred before comparing: on the raw (unblurred) pixels, NCC is extremely harsh --
+    even a 1-2px shift collapsed the score from ~100 to ~55-58 in testing, with almost no
+    further drop even at much larger shifts. That's an unusable signal since a person nudging
+    a camera by hand can't realistically hit pixel-exact placement. A 9x9 Gaussian blur first
+    gives a graduated curve instead (measured on synthetic 640x480 shifts): ~99 with only
+    sensor noise, ~93 at a 10px shift, ~73 at 40px, ~46 at 80px -- tolerates realistic
+    hand-alignment jitter while still dropping for a genuinely different framing.
+    """
+    if ref is None or ref.shape != frame.shape:
+        return 0.0
+    live_gray = cv2.GaussianBlur(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), (9, 9), 0).astype("float32")
+    ref_gray = cv2.GaussianBlur(cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY), (9, 9), 0).astype("float32")
+    corr = cv2.matchTemplate(live_gray, ref_gray, cv2.TM_CCOEFF_NORMED)[0, 0]
+    return float(max(0.0, corr) * 100)
+
+
 def lighting_signature(frame) -> dict:
     """Cheap stand-ins for "does this look like the same lighting", robust to auto-exposure.
 

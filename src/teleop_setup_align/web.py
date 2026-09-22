@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from .cli import (
     REFERENCE_DIR,
+    alignment_score,
     blend_frame,
     close_cameras,
     lighting_match,
@@ -102,6 +103,17 @@ def luminosity(name: str):
     return {"has_reference": True, **result}
 
 
+@app.get("/alignment/{name}")
+def alignment(name: str):
+    if name not in state["handles"]:
+        return JSONResponse({"error": f"unknown camera '{name}'"}, status_code=404)
+    ref = state["references"].get(name)
+    if ref is None:
+        return {"has_reference": False}
+    live_frame = cv2.cvtColor(state["handles"][name].read(), cv2.COLOR_RGB2BGR)
+    return {"has_reference": True, "score": alignment_score(live_frame, ref)}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     camera_names = list(state["handles"])
@@ -113,7 +125,7 @@ def index():
             <span data-badge="{name}" class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-gray-100 border-gray-300 text-gray-600">no reference</span>
           </div>
           <div class="p-4 pt-2">
-            <div class="relative rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+            <div data-align-ring="{name}" class="relative rounded-lg overflow-hidden bg-gray-100 border-4 border-gray-200 transition-colors duration-300">
               <img data-feed="{name}" class="w-full aspect-video object-cover" />
             </div>
             <div data-lum-wrap="{name}" class="mt-2 hidden">
@@ -195,7 +207,29 @@ def index():
     for (const name of cameraNames) {{
       document.querySelector(`img[data-feed="${{name}}"]`).src = `/feed/${{name}}?ghost=${{n === 2 ? 1 : 0}}&t=${{Date.now()}}`;
       document.querySelector(`[data-lum-wrap="${{name}}"]`).classList.toggle("hidden", n !== 2);
+      if (n !== 2) {{
+        document.querySelector(`[data-align-ring="${{name}}"]`).className =
+          "relative rounded-lg overflow-hidden bg-gray-100 border-4 border-gray-200 transition-colors duration-300";
+      }}
     }}
+  }}
+
+  // Colored halo around the feed: green once the live framing lines up with the reference,
+  // orange while it's still off. Polled faster than lighting since this is what you're
+  // watching while physically nudging the camera/arm in real time.
+  async function pollAlignment() {{
+    if (step === 2) {{
+      for (const name of cameraNames) {{
+        const r = await fetch(`/alignment/${{name}}`);
+        const j = await r.json();
+        const ring = document.querySelector(`[data-align-ring="${{name}}"]`);
+        const borderColor = !j.has_reference ? "border-gray-200"
+          : j.score >= 90 ? "border-green-500"
+          : "border-orange-500";
+        ring.className = "relative rounded-lg overflow-hidden bg-gray-100 border-4 transition-colors duration-300 " + borderColor;
+      }}
+    }}
+    setTimeout(pollAlignment, 400);
   }}
 
   // Optional: the ghost overlay checks framing, but not whether the room lighting has
@@ -249,6 +283,7 @@ def index():
   setStep(1);
   refreshStatus();
   pollLuminosity();
+  pollAlignment();
 </script>
 </body>
 </html>
