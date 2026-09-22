@@ -22,8 +22,9 @@ from .cli import (
     REFERENCE_DIR,
     blend_frame,
     close_cameras,
+    lighting_match,
+    lighting_signature,
     load_references,
-    mean_luminosity,
     open_cameras,
     parse_cameras,
 )
@@ -96,9 +97,9 @@ def luminosity(name: str):
     ref = state["references"].get(name)
     if ref is None:
         return {"has_reference": False}
-    live = mean_luminosity(cv2.cvtColor(state["handles"][name].read(), cv2.COLOR_RGB2BGR))
-    reference = mean_luminosity(ref)
-    return {"has_reference": True, "live": live, "reference": reference, "ratio": live / reference if reference else 0}
+    live_frame = cv2.cvtColor(state["handles"][name].read(), cv2.COLOR_RGB2BGR)
+    match = lighting_match(lighting_signature(live_frame), lighting_signature(ref))
+    return {"has_reference": True, "match": match}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -197,9 +198,10 @@ def index():
   }}
 
   // Optional: the ghost overlay checks framing, but not whether the room lighting has
-  // changed since the reference was taken -- a dim/bright match still lines up visually.
-  // Shown as a 0-100% match bar: 100% = identical mean brightness, dropping as the live
-  // frame diverges from the reference in either direction.
+  // changed since the reference was taken. Plain mean-brightness doesn't catch that well
+  // because auto-exposure actively renormalizes it -- the backend instead scores the worst
+  // of brightness/color-balance/sharpness divergence, so e.g. closing curtains (which shifts
+  // color temperature and adds noise even if AE keeps the mean looking similar) still shows up.
   async function pollLuminosity() {{
     if (step === 2) {{
       for (const name of cameraNames) {{
@@ -208,8 +210,7 @@ def index():
         const bar = document.querySelector(`[data-lum-bar="${{name}}"]`);
         const pctEl = document.querySelector(`[data-lum-pct="${{name}}"]`);
         if (!j.has_reference) {{ bar.style.width = "0%"; pctEl.textContent = "no reference"; continue; }}
-        const diffPct = Math.abs(j.ratio - 1) * 100;
-        const match = Math.max(0, Math.round(100 - diffPct));
+        const match = Math.round(j.match);
         const color = match >= 85 ? "bg-green-500" : match >= 60 ? "bg-amber-500" : "bg-red-500";
         bar.style.width = match + "%";
         bar.className = "h-1.5 rounded-full transition-all duration-300 " + color;
