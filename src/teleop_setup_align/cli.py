@@ -143,12 +143,12 @@ def lighting_signature(frame) -> dict:
     Auto-exposure actively renormalizes mean brightness to a target, so two very
     differently-lit scenes (e.g. curtains open vs closed) can end up with a near-identical
     average brightness while the camera compensates with a longer exposure/more gain --
-    exactly the case that matters for a policy trained on one lighting condition. Two other
-    signals shift with real lighting changes even when AE hides it in the mean:
-      - color_balance: per-channel share of total brightness. AE doesn't correct color
-        temperature, so daylight vs indoor lighting still shows up here.
-      - sharpness: variance of the Laplacian. Longer exposure/higher gain in low light adds
-        blur/noise that lowers this, even if the mean brightness looks unchanged.
+    exactly the case that matters for a policy trained on one lighting condition.
+    color_balance (per-channel share of total brightness) catches that: AE doesn't correct
+    color temperature, so daylight vs indoor lighting still shows up there. (An earlier version
+    also used Laplacian-variance "sharpness" as a low-light/noise proxy, but it turned out too
+    scene/texture-dependent -- wildly different magnitudes between two cameras pointed at
+    different things -- to combine with the other signals in a consistent way. Dropped.)
     """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     b, g, r = (float(c) for c in cv2.mean(frame)[:3])
@@ -156,23 +156,25 @@ def lighting_signature(frame) -> dict:
     return {
         "brightness": float(gray.mean()),
         "color_balance": (b / total, g / total, r / total),
-        "sharpness": float(cv2.Laplacian(gray, cv2.CV_64F).var()),
     }
 
 
-def lighting_match(live: dict, reference: dict) -> float:
-    """0-100 lighting match score: 100 - the single worst-diverging signal's % difference."""
+def lighting_match(live: dict, reference: dict) -> dict:
+    """0-100 lighting match score plus the individual signal diffs it's built from."""
 
     def pct_diff(a: float, b: float) -> float:
         return abs(a - b) / b * 100 if b else (0.0 if a == b else 100.0)
 
     brightness_diff = pct_diff(live["brightness"], reference["brightness"])
-    sharpness_diff = pct_diff(live["sharpness"], reference["sharpness"])
     # Channel shares are already fractions of ~1/3 each; scale so a visible color-temperature
     # shift (a few % of total brightness moving between channels) reads on the same 0-100 scale.
-    color_diff = sum(abs(a - b) for a, b in zip(live["color_balance"], reference["color_balance"])) * 300
-    worst = max(brightness_diff, sharpness_diff, color_diff)
-    return max(0.0, 100.0 - worst)
+    color_diff = sum(abs(a - b) for a, b in zip(live["color_balance"], reference["color_balance"])) * 100
+    combined = 0.6 * brightness_diff + 0.4 * color_diff
+    return {
+        "match": max(0.0, 100.0 - combined),
+        "brightness_diff": brightness_diff,
+        "color_diff": color_diff,
+    }
 
 
 # Minimum time between accepted keypresses, so OS key-repeat while a key is held doesn't

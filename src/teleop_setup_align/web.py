@@ -98,8 +98,8 @@ def luminosity(name: str):
     if ref is None:
         return {"has_reference": False}
     live_frame = cv2.cvtColor(state["handles"][name].read(), cv2.COLOR_RGB2BGR)
-    match = lighting_match(lighting_signature(live_frame), lighting_signature(ref))
-    return {"has_reference": True, "match": match}
+    result = lighting_match(lighting_signature(live_frame), lighting_signature(ref))
+    return {"has_reference": True, **result}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -214,6 +214,7 @@ def index():
         const color = match >= 85 ? "bg-green-500" : match >= 60 ? "bg-amber-500" : "bg-red-500";
         bar.style.width = match + "%";
         bar.className = "h-1.5 rounded-full transition-all duration-300 " + color;
+        bar.title = `brightness diff: ${{j.brightness_diff.toFixed(1)}}%, color diff: ${{j.color_diff.toFixed(1)}}%`;
         pctEl.textContent = match + "%";
       }}
     }}
