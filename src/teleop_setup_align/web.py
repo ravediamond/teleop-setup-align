@@ -93,13 +93,15 @@ def index():
     camera_names = list(state["handles"])
     cards = "".join(
         f"""
-        <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
           <div class="flex items-center justify-between p-4 pb-2">
-            <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{name}</span>
-            <span data-badge="{name}" class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-secondary text-secondary-foreground">no reference</span>
+            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">{name}</span>
+            <span data-badge="{name}" class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-gray-100 border-gray-300 text-gray-600">no reference</span>
           </div>
           <div class="p-4 pt-2">
-            <img data-feed="{name}" class="w-full rounded-md border aspect-video object-cover bg-black" />
+            <div class="relative rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+              <img data-feed="{name}" class="w-full aspect-video object-cover" />
+            </div>
           </div>
         </div>"""
         for name in camera_names
@@ -113,88 +115,42 @@ def index():
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>teleop-setup-align</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {{
-    theme: {{
-      extend: {{
-        colors: {{
-          border: "hsl(var(--border))",
-          background: "hsl(var(--background))",
-          foreground: "hsl(var(--foreground))",
-          primary: {{ DEFAULT: "hsl(var(--primary))", foreground: "hsl(var(--primary-foreground))" }},
-          secondary: {{ DEFAULT: "hsl(var(--secondary))", foreground: "hsl(var(--secondary-foreground))" }},
-          muted: {{ DEFAULT: "hsl(var(--muted))", foreground: "hsl(var(--muted-foreground))" }},
-          accent: {{ DEFAULT: "hsl(var(--accent))", foreground: "hsl(var(--accent-foreground))" }},
-          card: {{ DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" }},
-        }},
-      }},
-    }},
-  }}
-</script>
-<style>
-  /* Same design-system tokens as LeLab's frontend/src/index.css, light + dark. */
-  :root {{
-    --background: 0 0% 100%; --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%; --card-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%; --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%; --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%; --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%; --accent-foreground: 222.2 47.4% 11.2%;
-    --border: 214.3 31.8% 91.4%;
-  }}
-  @media (prefers-color-scheme: dark) {{
-    :root {{
-      --background: 222.2 84% 4.9%; --foreground: 210 40% 98%;
-      --card: 222.2 84% 4.9%; --card-foreground: 210 40% 98%;
-      --primary: 210 40% 98%; --primary-foreground: 222.2 47.4% 11.2%;
-      --secondary: 217.2 32.6% 17.5%; --secondary-foreground: 210 40% 98%;
-      --muted: 217.2 32.6% 17.5%; --muted-foreground: 215 20.2% 65.1%;
-      --accent: 217.2 32.6% 17.5%; --accent-foreground: 210 40% 98%;
-      --border: 217.2 32.6% 17.5%;
-    }}
-  }}
-  body {{ background: hsl(var(--background)); color: hsl(var(--foreground)); }}
-</style>
 </head>
-<body class="min-h-screen">
-  <header class="border-b bg-card">
-    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-lg font-semibold">teleop-setup-align</h1>
-        <p class="text-xs text-muted-foreground">Realign a stashed rig to a saved reference setup</p>
-      </div>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <div class="max-w-4xl mx-auto p-4">
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold">teleop-setup-align</h1>
+      <p class="text-gray-500 text-sm mt-1">Realign a stashed rig to a saved reference setup</p>
     </div>
-  </header>
 
-  <main class="max-w-5xl mx-auto px-6 py-6 space-y-6">
-    <div class="inline-flex rounded-md border bg-secondary/40 p-1">
+    <div class="inline-flex rounded-md border border-gray-200 bg-white p-1 mb-4">
       <button id="tab-1" onclick="setStep(1)"
         class="rounded-sm px-4 py-1.5 text-sm font-medium transition-colors">1&nbsp;&middot;&nbsp;Snapshot</button>
       <button id="tab-2" onclick="setStep(2)"
         class="rounded-sm px-4 py-1.5 text-sm font-medium transition-colors">2&nbsp;&middot;&nbsp;Align</button>
     </div>
 
-    <p id="step-help" class="text-sm text-muted-foreground"></p>
+    <p id="step-help" class="text-sm text-gray-500 mb-4"></p>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       {cards}
     </div>
 
-    <div id="panel-1" class="rounded-lg border bg-card p-4 flex items-center gap-3">
+    <div id="panel-1" class="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex items-center gap-3">
       <button onclick="snap()"
-        class="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+        class="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-green-500 text-white hover:bg-green-600 transition-colors">
         Save Snapshot
       </button>
-      <span id="snap-status" class="text-sm text-muted-foreground"></span>
+      <span id="snap-status" class="text-sm text-gray-500"></span>
     </div>
 
-    <div id="panel-2" class="rounded-lg border bg-card p-4 flex items-center gap-4 hidden">
-      <label class="text-sm font-medium">Ghost opacity</label>
+    <div id="panel-2" class="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex items-center gap-4 hidden">
+      <label class="text-sm font-medium text-gray-700">Ghost opacity</label>
       <input id="alpha" type="range" min="0" max="1" step="0.05" value="{state["alpha"]}"
-        oninput="setAlpha(this.value)" class="w-48" />
-      <span id="alpha-value" class="text-sm text-muted-foreground w-10">{int(state["alpha"] * 100)}%</span>
+        oninput="setAlpha(this.value)" class="w-48 accent-green-500" />
+      <span id="alpha-value" class="text-sm text-gray-500 w-10">{int(state["alpha"] * 100)}%</span>
     </div>
-  </main>
+  </div>
 
 <script>
   const cameraNames = {camera_names!r};
@@ -207,7 +163,7 @@ def index():
     for (const [id, active] of [["tab-1", n === 1], ["tab-2", n === 2]]) {{
       const el = document.getElementById(id);
       el.className = "rounded-sm px-4 py-1.5 text-sm font-medium transition-colors " +
-        (active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground");
+        (active ? "bg-green-500 text-white" : "text-gray-500 hover:text-gray-900");
     }}
     document.getElementById("step-help").textContent = n === 1
       ? "Get the arm and cameras where you want them, then save a reference frame per camera."
@@ -224,7 +180,7 @@ def index():
       const badge = document.querySelector(`[data-badge="${{name}}"]`);
       badge.textContent = has ? "reference saved" : "no reference";
       badge.className = "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold " +
-        (has ? "border-transparent bg-primary text-primary-foreground" : "border-transparent bg-secondary text-secondary-foreground");
+        (has ? "bg-green-100 border-green-300 text-green-700" : "bg-gray-100 border-gray-300 text-gray-600");
     }}
   }}
 
